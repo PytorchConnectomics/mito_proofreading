@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mito_proofreading"
+version = "0.1.0"
+description = "Data preparation for large-scale mitochondria proofreading (H01 first)"
+requires-python = ">=3.9"
+# em_util (https://github.com/PytorchConnectomics/em_util) is a prerequisite
+# installed separately; see README.
+dependencies = ["numpy", "h5py", "pyyaml", "tensorstore"]
+
+[tool.setuptools]
+packages = ["mito_proofreading"]

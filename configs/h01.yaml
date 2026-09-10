@@ -1,0 +1,62 @@
+# H01 dataset details for mito proofreading data preparation.
+# The only place for data paths and dataset facts; code reads everything from here.
+#
+# Conventions
+#   *_xyz : neuroglancer order (x, y, z), as in precomputed `info` files.
+#   *_zyx : numpy volume order (z, y, x).
+#   Boxes written by the pipeline are global (uncropped), half-open, zyx.
+#   Relative paths resolve against data_root; output_root resolves against data_root.
+#   Pattern styles: lowres.*_pattern use printf with the crop z index (%04d);
+#   mask.*_pattern use str.format fields {output_root} {neuron_id} {z0} {y0} {x0}.
+#
+# Facts checked on 2026-09-10:
+#   c3 @ 128x128x132 nm: size_xyz [32244, 22275, 1324]; c3 @ 8x8x33 nm: [515892, 356400, 5293]
+#   local seg_mip5 slice == c3@128nm[z, y + 2560, x + 3520]
+
+name: h01
+data_root: /n/boslfs02/LABS/lichtman_lab/donglai/Tape/H01
+output_root: mito_pf              # new outputs never go into the legacy directories
+
+gs:
+  image: gs://h01-release/data/20210601/4nm_raw/
+  seg: gs://h01-release/data/20210601/c3/
+
+lowres:                           # c3 segmentation downloaded at 128x128x132 nm
+  resolution_xyz: [128, 128, 132]
+  size_xyz: [32244, 22275, 1324]  # full c3 extent at this scale
+  crop_offset_zyx: [0, 2560, 3520]
+  crop_size_zyx: [1324, 15552, 27072]
+  seg_pattern: seg_mip5/seg/%04d.h5          # one (y, x) uint64 slice per z, dataset "main"
+  bbox_pattern: seg_mip5/bbox/%04d_bb.h5     # rows [id, y0, y1, x0, x1, count], inclusive, crop coords
+  download_block_yx: [2048, 2048]
+  download_zslab: 64                         # c3 chunk depth at this scale
+  h5_chunks_yx: [256, 256]                   # must divide download_block_yx
+
+inference:                        # resolution the DL package predicts at
+  resolution_xyz: [8, 8, 33]
+  size_xyz: [515892, 356400, 5293]
+
+tile:
+  size_lowres_zyx: [25, 128, 128]      # -> 100 x 2048 x 2048 at inference resolution
+  origin_lowres_zyx: [0, 2560, 3520]   # legacy grid alignment (legacy tile outputs stay addressable)
+  min_voxels_lowres: 1
+  dilate: 0                            # extra tiles around occupied ones (thin neurites)
+
+chunk:
+  pad_zyx: [0, 0, 0]                   # image context around each chunk, inference voxels
+
+neurons:
+  pair_files:                          # two c3 ids per line
+    - mito_mip1/pair_L2.txt
+    - mito_mip1/pair_L3.txt
+    - mito_mip1/pair_L4.txt
+    - mito_mip1/pair_L5.txt
+    - mito_mip1/pair_L6.txt
+  ids: []
+
+mask:
+  source: gs                           # gs | lowres
+  resolution_xyz: [32, 32, 33]         # c3 scale for the neuron mask when source is gs
+  min_overlap: 0.5                     # keep a mito instance if this fraction lies inside the neuron
+  pred_pattern: "{output_root}/pred/{z0:04d}/{y0}-{x0}.h5"
+  out_pattern: "{output_root}/mito/{neuron_id}/{z0:04d}/{y0}-{x0}.h5"
